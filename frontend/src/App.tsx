@@ -8,6 +8,7 @@ import { BookingProvider } from "@/contexts/BookingContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import LoginPage from "@/pages/LoginPage";
+import GoogleCallbackPage from "@/pages/GoogleCallbackPage";
 import DashboardPage from "@/pages/DashboardPage";
 import ResourcesPage from "@/pages/ResourcesPage";
 import BookingPage from "@/pages/BookingPage";
@@ -18,7 +19,17 @@ import UsersPage from "@/pages/UsersPage";
 import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "@/pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      retry: 1,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -31,7 +42,8 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="/login" element={<LoginPage />} />
-              
+              <Route path="/auth/callback" element={<GoogleCallbackPage />} />
+
               <Route element={<ProtectedRoute />}>
                 <Route element={<DashboardLayout />}>
                   <Route path="/dashboard" element={<DashboardPage />} />
@@ -44,7 +56,7 @@ const App = () => (
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>
               </Route>
-              
+
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
