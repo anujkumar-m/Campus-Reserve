@@ -1,45 +1,94 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, UserRole } from '@/types';
-import { mockUsers } from '@/data/mockData';
+import { User } from '@/types';
+import { authService } from '@/services/authService';
+import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
   user: User | null;
-  login: (role: UserRole) => void;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
-    // Check localStorage for existing session
-    const storedRole = localStorage.getItem('userRole') as UserRole | null;
-    if (storedRole) {
-      const foundUser = mockUsers.find((u) => u.role === storedRole);
-      if (foundUser) {
-        setUser(foundUser);
+    // Check for existing session
+    const initAuth = async () => {
+      const token = authService.getToken();
+      const storedUser = authService.getStoredUser();
+
+      if (token && storedUser) {
+        try {
+          // Verify token is still valid by fetching current user
+          const currentUser = await authService.getCurrentUser();
+          setUser(currentUser);
+        } catch (error) {
+          // Token is invalid, clear storage
+          authService.logout();
+          setUser(null);
+        }
       }
-    }
+      setIsLoading(false);
+    };
+
+    initAuth();
   }, []);
 
-  const login = (role: UserRole) => {
-    const foundUser = mockUsers.find((u) => u.role === role);
-    if (foundUser) {
-      setUser(foundUser);
-      localStorage.setItem('userRole', role);
+  const login = async (email: string, password: string) => {
+    try {
+      const response = await authService.login(email, password);
+      setUser(response.user);
+      toast({
+        title: 'Login successful',
+        description: `Welcome back, ${response.user.name}!`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Login failed',
+        description: error.response?.data?.message || 'Invalid credentials',
+        variant: 'destructive',
+      });
+      throw error;
     }
   };
 
-  const logout = () => {
+  const loginWithGoogle = async () => {
+    try {
+      const response = await authService.loginWithGoogle();
+      setUser(response.user);
+      toast({
+        title: 'Login successful',
+        description: `Welcome, ${response.user.name}!`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Login failed',
+        description: error.response?.data?.message || 'Google sign-in failed',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
+  const logout = async () => {
+    await authService.logout();
     setUser(null);
-    localStorage.removeItem('userRole');
+    toast({
+      title: 'Logged out',
+      description: 'You have been logged out successfully',
+    });
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, login, loginWithGoogle, logout, isAuthenticated: !!user, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

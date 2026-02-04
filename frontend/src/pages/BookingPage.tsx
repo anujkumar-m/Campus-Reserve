@@ -24,9 +24,9 @@ export default function BookingPage() {
   const { user } = useAuth();
 
   const preselectedResourceId = searchParams.get('resource');
-  
+
   const [selectedResourceId, setSelectedResourceId] = useState(preselectedResourceId || '');
-  const [date, setDate] = useState<Date>();
+  const [date, setDate] = useState<Date | undefined>(undefined);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [purpose, setPurpose] = useState('');
 
@@ -64,8 +64,8 @@ export default function BookingPage() {
 
     addBooking(booking);
     toast.success(
-      user.role === 'faculty' 
-        ? 'Booking confirmed!' 
+      user.role === 'faculty'
+        ? 'Booking confirmed!'
         : 'Booking request submitted for approval'
     );
     navigate('/my-bookings');
@@ -75,15 +75,15 @@ export default function BookingPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">
-          {user?.role === 'student' ? 'Request Booking' : 
-           user?.role === 'club' ? 'Book Venue' : 'Book Resource'}
+          {user?.role === 'student' ? 'Request Booking' :
+            user?.role === 'club' ? 'Book Venue' : 'Book Resource'}
         </h1>
         <p className="text-muted-foreground">
-          {user?.role === 'student' 
+          {user?.role === 'student'
             ? 'Submit a booking request for approval'
             : user?.role === 'faculty'
-            ? 'Reserve a resource for your class'
-            : 'Book a venue for your event'}
+              ? 'Reserve a resource for your class'
+              : 'Book a venue for your event'}
         </p>
       </div>
 
@@ -106,11 +106,7 @@ export default function BookingPage() {
                   <SelectContent>
                     {availableResources.map((resource) => (
                       <SelectItem key={resource.id} value={resource.id}>
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-muted-foreground" />
-                          <span>{resource.name}</span>
-                          <span className="text-muted-foreground">• {resource.location}</span>
-                        </div>
+                        {resource.name} • {resource.location}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -213,8 +209,8 @@ export default function BookingPage() {
                   <p className="text-xs text-muted-foreground mb-2">Amenities</p>
                   <div className="flex flex-wrap gap-1">
                     {selectedResource.amenities.map((amenity) => (
-                      <span 
-                        key={amenity} 
+                      <span
+                        key={amenity}
                         className="text-xs px-2 py-1 rounded-md bg-secondary text-secondary-foreground"
                       >
                         {amenity}

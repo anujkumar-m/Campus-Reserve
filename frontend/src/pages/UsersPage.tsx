@@ -1,8 +1,18 @@
-import { mockUsers } from '@/data/mockData';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { userService } from '@/services/userService';
+import { roleService } from '@/services/roleService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users, GraduationCap, BookOpen, Building2, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Users, GraduationCap, BookOpen, Building2, Sparkles, UserPlus } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 const roleIcons = {
   admin: Building2,
@@ -21,32 +31,186 @@ const roleColors = {
 };
 
 export default function UsersPage() {
-  const usersByRole = {
-    admin: mockUsers.filter((u) => u.role === 'admin'),
-    faculty: mockUsers.filter((u) => u.role === 'faculty'),
-    student: mockUsers.filter((u) => u.role === 'student'),
-    department: mockUsers.filter((u) => u.role === 'department'),
-    club: mockUsers.filter((u) => u.role === 'club'),
+  const { user: currentUser } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  // Form state
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<string>('student');
+  const [department, setDepartment] = useState('');
+  const [clubName, setClubName] = useState('');
+
+  // Fetch all users
+  const { data: users = [], isLoading } = useQuery({
+    queryKey: ['users'],
+    queryFn: userService.getAllUsers,
+    enabled: currentUser?.role === 'admin',
+  });
+
+  // Assign role mutation
+  const assignRoleMutation = useMutation({
+    mutationFn: roleService.assignRole,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({
+        title: 'Success',
+        description: 'Role assigned successfully',
+      });
+      setIsDialogOpen(false);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to assign role',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const resetForm = () => {
+    setEmail('');
+    setRole('student');
+    setDepartment('');
+    setClubName('');
   };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    assignRoleMutation.mutate({
+      email,
+      role,
+      department: ['faculty', 'student', 'department'].includes(role) ? department : undefined,
+      clubName: role === 'club' ? clubName : undefined,
+    });
+  };
+
+  const usersByRole = {
+    admin: users.filter((u: any) => u.role === 'admin'),
+    faculty: users.filter((u: any) => u.role === 'faculty'),
+    student: users.filter((u: any) => u.role === 'student'),
+    department: users.filter((u: any) => u.role === 'department'),
+    club: users.filter((u: any) => u.role === 'club'),
+  };
+
+  // Only admins can access this page
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <p className="text-muted-foreground">Access denied. Admin only.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Users</h1>
-        <p className="text-muted-foreground">
-          Manage system users and their access levels
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Users</h1>
+          <p className="text-muted-foreground">
+            Manage system users and assign roles
+          </p>
+        </div>
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Add User / Assign Role
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Add User or Assign Role</DialogTitle>
+              <DialogDescription>
+                Assign a role to a user by email. If the user doesn't exist, they'll be created when they sign in with Google.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit}>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="email">Email Address</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="user@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="role">Role</Label>
+                  <Select value={role} onValueChange={setRole}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="student">Student</SelectItem>
+                      <SelectItem value="faculty">Faculty</SelectItem>
+                      <SelectItem value="department">Department</SelectItem>
+                      <SelectItem value="club">Club</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {['faculty', 'student', 'department'].includes(role) && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="department">Department</Label>
+                    <Input
+                      id="department"
+                      placeholder="e.g., Computer Science"
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+
+                {role === 'club' && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="clubName">Club Name</Label>
+                    <Input
+                      id="clubName"
+                      placeholder="e.g., Tech Club"
+                      value={clubName}
+                      onChange={(e) => setClubName(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={assignRoleMutation.isPending}>
+                  {assignRoleMutation.isPending ? 'Assigning...' : 'Assign Role'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-        {Object.entries(usersByRole).map(([role, users]) => {
+        {Object.entries(usersByRole).map(([role, roleUsers]) => {
           const Icon = roleIcons[role as keyof typeof roleIcons];
           return (
             <Card key={role} className="stat-card">
               <CardContent className="p-4 text-center">
                 <Icon className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-2xl font-bold">{users.length}</p>
+                <p className="text-2xl font-bold">{roleUsers.length}</p>
                 <p className="text-xs text-muted-foreground capitalize">{role}s</p>
               </CardContent>
             </Card>
@@ -57,48 +221,54 @@ export default function UsersPage() {
       {/* User List */}
       <Card>
         <CardHeader>
-          <CardTitle>All Users</CardTitle>
+          <CardTitle>All Users ({users.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {mockUsers.map((user) => {
-              const Icon = roleIcons[user.role];
-              return (
-                <div
-                  key={user.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <Avatar>
-                      <AvatarFallback className="bg-primary text-primary-foreground">
-                        {user.name.split(' ').map((n) => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium text-foreground">{user.name}</p>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
+          {isLoading ? (
+            <p className="text-center text-muted-foreground py-8">Loading users...</p>
+          ) : users.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No users found</p>
+          ) : (
+            <div className="space-y-3">
+              {users.map((user: any) => {
+                const Icon = roleIcons[user.role as keyof typeof roleIcons];
+                return (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <Avatar>
+                        <AvatarFallback className="bg-primary text-primary-foreground">
+                          {user.name.split(' ').map((n: string) => n[0]).join('')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium text-foreground">{user.name}</p>
+                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {user.department && (
+                        <span className="text-sm text-muted-foreground hidden sm:inline">
+                          {user.department}
+                        </span>
+                      )}
+                      {user.clubName && (
+                        <span className="text-sm text-muted-foreground hidden sm:inline">
+                          {user.clubName}
+                        </span>
+                      )}
+                      <Badge variant="secondary" className={roleColors[user.role as keyof typeof roleColors]}>
+                        <Icon className="h-3 w-3 mr-1" />
+                        <span className="capitalize">{user.role}</span>
+                      </Badge>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {user.department && (
-                      <span className="text-sm text-muted-foreground hidden sm:inline">
-                        {user.department}
-                      </span>
-                    )}
-                    {user.clubName && (
-                      <span className="text-sm text-muted-foreground hidden sm:inline">
-                        {user.clubName}
-                      </span>
-                    )}
-                    <Badge variant="secondary" className={roleColors[user.role]}>
-                      <Icon className="h-3 w-3 mr-1" />
-                      <span className="capitalize">{user.role}</span>
-                    </Badge>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
