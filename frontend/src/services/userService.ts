@@ -41,4 +41,16 @@ export const userService = {
     delete: async (id: string): Promise<void> => {
         await api.delete(`/users/${id}`);
     },
+
+    // Block user
+    block: async (id: string, reason?: string): Promise<User> => {
+        const response = await api.put<UserResponse>(`/users/${id}/block`, { reason });
+        return response.data.data;
+    },
+
+    // Unblock user
+    unblock: async (id: string): Promise<User> => {
+        const response = await api.put<UserResponse>(`/users/${id}/unblock`);
+        return response.data.data;
+    },
 };

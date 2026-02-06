@@ -1,41 +1,66 @@
+import { useState, useEffect } from 'react';
 import { useBooking } from '@/contexts/BookingContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { BookingCard } from '@/components/BookingCard';
+import { ApprovalCard } from '@/components/ApprovalCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, XCircle, Clock } from 'lucide-react';
-import { toast } from 'sonner';
+import { CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { Booking } from '@/types';
 
 export default function ApprovalsPage() {
   const { user } = useAuth();
-  const { bookings, updateBookingStatus, getBookingsByDepartment, getPendingBookings } = useBooking();
+  const { approveBooking, rejectBooking, getPendingApprovals } = useBooking();
+  const [pendingBookings, setPendingBookings] = useState<Booking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadPendingApprovals();
+  }, []);
+
+  const loadPendingApprovals = async () => {
+    try {
+      setIsLoading(true);
+      const bookings = await getPendingApprovals();
+      setPendingBookings(bookings);
+    } catch (error) {
+      console.error('Failed to load pending approvals:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleApprove = async (id: string) => {
+    await approveBooking(id);
+    await loadPendingApprovals(); // Refresh list
+  };
+
+  const handleReject = async (id: string, reason: string) => {
+    await rejectBooking(id, reason);
+    await loadPendingApprovals(); // Refresh list
+  };
 
   if (!user) return null;
 
-  // Department users see bookings for their department resources
-  // Admin sees all pending bookings
-  const relevantBookings = user.role === 'department' && user.department
-    ? getBookingsByDepartment(user.department)
-    : getPendingBookings();
-
-  const pendingBookings = relevantBookings.filter((b) => b.status === 'pending');
-  const recentlyProcessed = relevantBookings
-    .filter((b) => b.status !== 'pending')
-    .slice(0, 5);
-
-  const handleApprove = (id: string) => {
-    updateBookingStatus(id, 'approved');
-    toast.success('Booking approved');
-  };
-
-  const handleReject = (id: string) => {
-    updateBookingStatus(id, 'rejected');
-    toast.success('Booking rejected');
-  };
+  // Only HOD and Admin can access this page
+  if (user.role !== 'department' && user.role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <AlertCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+            <p className="text-muted-foreground">
+              You don't have permission to access this page.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const stats = {
     pending: pendingBookings.length,
-    approved: relevantBookings.filter((b) => b.status === 'approved').length,
-    rejected: relevantBookings.filter((b) => b.status === 'rejected').length,
+    hodPending: pendingBookings.filter((b) => b.status === 'pending_hod').length,
+    adminPending: pendingBookings.filter((b) => b.status === 'pending_admin').length,
   };
 
   return (
@@ -43,9 +68,9 @@ export default function ApprovalsPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Booking Approvals</h1>
         <p className="text-muted-foreground">
-          {user.role === 'department' 
+          {user.role === 'department'
             ? `Review and approve booking requests for ${user.department} resources`
-            : 'Review and manage all booking requests'}
+            : 'Review and manage all booking requests requiring admin approval'}
         </p>
       </div>
 
@@ -59,37 +84,43 @@ export default function ApprovalsPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{stats.pending}</p>
-                <p className="text-sm text-muted-foreground">Pending</p>
+                <p className="text-sm text-muted-foreground">Total Pending</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="stat-card">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-success/10 flex items-center justify-center">
-                <CheckCircle className="h-5 w-5 text-success" />
+
+        {user.role === 'department' && (
+          <Card className="stat-card">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                  <Clock className="h-5 w-5 text-yellow-500" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{stats.hodPending}</p>
+                  <p className="text-sm text-muted-foreground">HOD Approval</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{stats.approved}</p>
-                <p className="text-sm text-muted-foreground">Approved</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {user.role === 'admin' && (
+          <Card className="stat-card">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                  <Clock className="h-5 w-5 text-orange-500" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{stats.adminPending}</p>
+                  <p className="text-sm text-muted-foreground">Admin Approval</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="stat-card">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-destructive/10 flex items-center justify-center">
-                <XCircle className="h-5 w-5 text-destructive" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{stats.rejected}</p>
-                <p className="text-sm text-muted-foreground">Rejected</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Pending Approvals */}
@@ -101,13 +132,17 @@ export default function ApprovalsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {pendingBookings.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {isLoading ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Clock className="h-10 w-10 mx-auto mb-2 opacity-50 animate-spin" />
+              <p>Loading pending approvals...</p>
+            </div>
+          ) : pendingBookings.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {pendingBookings.map((booking) => (
-                <BookingCard
+                <ApprovalCard
                   key={booking.id}
                   booking={booking}
-                  showActions
                   onApprove={handleApprove}
                   onReject={handleReject}
                 />
@@ -117,26 +152,11 @@ export default function ApprovalsPage() {
             <div className="text-center py-8 text-muted-foreground">
               <CheckCircle className="h-10 w-10 mx-auto mb-2 opacity-50" />
               <p>No pending requests</p>
+              <p className="text-sm mt-1">All bookings have been processed</p>
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Recently Processed */}
-      {recentlyProcessed.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Recently Processed</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {recentlyProcessed.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

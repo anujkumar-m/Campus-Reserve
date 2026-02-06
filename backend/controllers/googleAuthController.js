@@ -2,6 +2,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const { parseEmail, extractNameFromEmail } = require('../utils/emailParser');
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -20,6 +21,15 @@ passport.use(
         },
         async (accessToken, refreshToken, profile, done) => {
             try {
+                const email = profile.emails[0].value;
+
+                // Parse email to validate and extract role info
+                const emailInfo = parseEmail(email);
+
+                if (!emailInfo.isValid) {
+                    return done(new Error(emailInfo.error), null);
+                }
+
                 // Check if user already exists
                 let user = await User.findOne({ googleId: profile.id });
 
@@ -28,8 +38,8 @@ passport.use(
                     return done(null, user);
                 }
 
-                // Check if user exists with same email (migration case)
-                user = await User.findOne({ email: profile.emails[0].value });
+                // Check if user exists with same email (pending role assignment or migration)
+                user = await User.findOne({ email });
 
                 if (user) {
                     // Update existing user to use Google auth
@@ -39,14 +49,32 @@ passport.use(
                     return done(null, user);
                 }
 
-                // Create new user
-                const newUser = await User.create({
-                    name: profile.displayName,
-                    email: profile.emails[0].value,
+                // Prepare new user data
+                const userData = {
+                    name: profile.displayName || extractNameFromEmail(email),
+                    email,
                     googleId: profile.id,
                     authProvider: 'google',
-                    role: 'student', // Default role, admin can change later
-                });
+                    role: emailInfo.role
+                };
+
+                // Add department if detected
+                if (emailInfo.department) {
+                    userData.department = emailInfo.department;
+                }
+
+                // Add year for students
+                if (emailInfo.year) {
+                    userData.year = emailInfo.year;
+                }
+
+                // Add club name for clubs
+                if (emailInfo.clubName) {
+                    userData.clubName = emailInfo.clubName;
+                }
+
+                // Create new user
+                const newUser = await User.create(userData);
 
                 done(null, newUser);
             } catch (error) {

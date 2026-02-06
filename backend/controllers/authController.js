@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { parseEmail, extractNameFromEmail } = require('../utils/emailParser');
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -13,7 +14,18 @@ const generateToken = (id) => {
 // @access  Public
 exports.register = async (req, res) => {
     try {
-        const { name, email, password, role, department, clubName } = req.body;
+        const { email, password, department: manualDepartment } = req.body;
+        let { name } = req.body;
+
+        // Parse email to extract role and department
+        const emailInfo = parseEmail(email);
+
+        if (!emailInfo.isValid) {
+            return res.status(400).json({
+                success: false,
+                message: emailInfo.error,
+            });
+        }
 
         // Check if user already exists
         const userExists = await User.findOne({ email });
@@ -24,15 +36,40 @@ exports.register = async (req, res) => {
             });
         }
 
-        // Create user
-        const user = await User.create({
+        // Use extracted name if not provided
+        if (!name) {
+            name = extractNameFromEmail(email);
+        }
+
+        // Prepare user data
+        const userData = {
             name,
             email,
             password,
-            role,
-            department,
-            clubName,
-        });
+            role: emailInfo.role,
+            authProvider: 'local'
+        };
+
+        // Add department if detected from email
+        if (emailInfo.department) {
+            userData.department = emailInfo.department;
+        } else if (emailInfo.role === 'faculty' && manualDepartment) {
+            // Faculty can provide department manually
+            userData.department = manualDepartment;
+        }
+
+        // Add year for students
+        if (emailInfo.year) {
+            userData.year = emailInfo.year;
+        }
+
+        // Add club name for clubs
+        if (emailInfo.clubName) {
+            userData.clubName = emailInfo.clubName;
+        }
+
+        // Create user
+        const user = await User.create(userData);
 
         // Generate token
         const token = generateToken(user._id);
@@ -46,6 +83,7 @@ exports.register = async (req, res) => {
                 email: user.email,
                 role: user.role,
                 department: user.department,
+                year: user.year,
                 clubName: user.clubName,
             },
         });
@@ -87,21 +125,12 @@ exports.login = async (req, res) => {
             });
         }
 
-        // Only admins can use manual login
-        if (user.role !== 'admin') {
-            console.log('❌ Non-admin attempting manual login');
-            return res.status(403).json({
-                success: false,
-                message: 'Please use Google Sign-In to login. Manual login is only available for administrators.',
-            });
-        }
-
-        // Ensure user is using local auth provider
+        // Ensure user is using local auth provider (not Google)
         if (user.authProvider !== 'local') {
-            console.log('❌ Admin user configured for Google auth');
+            console.log('❌ User configured for Google auth');
             return res.status(403).json({
                 success: false,
-                message: 'This account is configured for Google Sign-In',
+                message: 'This account is configured for Google Sign-In. Please use the "Sign in with Google" button.',
             });
         }
 

@@ -36,13 +36,26 @@ api.interceptors.response.use(
         return response;
     },
     (error) => {
-        console.error('📥 Response error:', error.response?.status, error.message);
-        if (error.response?.status === 401) {
-            // Unauthorized - clear token and redirect to login
+        const status = error.response?.status;
+        const url = error.config?.url || '';
+
+        console.error('📥 Response error:', status, error.message);
+        console.error('📥 Failed URL:', url);
+
+        // Only auto-redirect to login for 401 errors on protected endpoints
+        // Don't redirect for auth verification endpoints - let AuthContext handle it
+        const isAuthEndpoint = url.includes('/auth/me') || url.includes('/auth/login') || url.includes('/auth/register');
+
+        if (status === 401 && !isAuthEndpoint) {
+            console.warn('🚪 401 on protected endpoint - logging out');
+            // Unauthorized on protected endpoint - clear token and redirect to login
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             window.location.href = '/login';
+        } else if (status === 401 && isAuthEndpoint) {
+            console.log('ℹ️ 401 on auth endpoint - letting AuthContext handle it');
         }
+
         return Promise.reject(error);
     }
 );

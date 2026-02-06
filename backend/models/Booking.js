@@ -30,10 +30,46 @@ const bookingSchema = new mongoose.Schema({
         required: [true, 'Please provide booking purpose'],
         trim: true,
     },
+    bookingType: {
+        type: String,
+        enum: ['regular', 'remedial', 'project', 'event', 'industrial_visit', 'other'],
+        default: 'regular'
+    },
+    duration: {
+        type: Number, // in hours
+        required: true
+    },
     status: {
         type: String,
-        enum: ['pending', 'approved', 'rejected'],
-        default: 'pending',
+        enum: ['auto_approved', 'pending_hod', 'pending_admin', 'approved', 'rejected', 'cancelled'],
+        default: 'pending_hod',
+    },
+    requiresApproval: {
+        type: Boolean,
+        default: true
+    },
+    approvalLevel: {
+        type: String,
+        enum: ['none', 'hod', 'admin'],
+        default: 'none'
+    },
+    approvedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    approvedAt: {
+        type: Date
+    },
+    rejectedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    rejectedAt: {
+        type: Date
+    },
+    rejectionReason: {
+        type: String,
+        trim: true
     },
     department: {
         type: String,
@@ -47,6 +83,8 @@ const bookingSchema = new mongoose.Schema({
 // Index for efficient queries
 bookingSchema.index({ resourceId: 1, date: 1, status: 1 });
 bookingSchema.index({ userId: 1, status: 1 });
+bookingSchema.index({ status: 1, approvalLevel: 1, department: 1 }); // For approval queries
+bookingSchema.index({ date: 1, userId: 1 }); // For daily limit checks
 
 // Virtual fields for populated data
 bookingSchema.virtual('resourceName');

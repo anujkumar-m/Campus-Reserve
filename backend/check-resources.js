@@ -1,30 +1,32 @@
-// Check resources in database
 require('dotenv').config();
 const mongoose = require('mongoose');
 const Resource = require('./models/Resource');
 
-const checkResources = async () => {
+async function checkResources() {
     try {
         await mongoose.connect(process.env.MONGODB_URI);
         console.log('✅ Connected to MongoDB\n');
 
         const resources = await Resource.find({});
-        console.log(`📊 Total resources: ${resources.length}\n`);
+        console.log(`Total resources in database: ${resources.length}\n`);
 
-        resources.forEach((resource, index) => {
-            console.log(`${index + 1}. ${resource.name}`);
-            console.log(`   ID: ${resource._id}`);
-            console.log(`   Type: ${resource.type}`);
-            console.log(`   Location: ${resource.location}`);
-            console.log(`   Available: ${resource.isAvailable}`);
-            console.log('');
-        });
+        if (resources.length === 0) {
+            console.log('❌ No resources found! Please run: node seed-database.js');
+        } else {
+            console.log('Resources:');
+            resources.forEach(r => {
+                console.log(`- ${r.name}`);
+                console.log(`  Type: ${r.type}, Category: ${r.category}`);
+                console.log(`  Department: ${r.department || 'N/A'}`);
+                console.log('');
+            });
+        }
 
         process.exit(0);
     } catch (error) {
         console.error('❌ Error:', error.message);
         process.exit(1);
     }
-};
+}
 
 checkResources();

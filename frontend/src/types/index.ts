@@ -9,21 +9,56 @@ export interface User {
   clubName?: string;
 }
 
-export type ResourceType = 'classroom' | 'lab' | 'seminar_hall';
+export type ResourceType =
+  | 'classroom'
+  | 'lab'
+  | 'department_library'
+  | 'department_seminar_hall'
+  | 'central_seminar_hall'
+  | 'auditorium'
+  | 'conference_room'
+  | 'bus'
+  | 'projector'
+  | 'camera'
+  | 'sound_system'
+  | 'other_equipment'
+  | 'others';
+
+export type ResourceCategory = 'department' | 'central' | 'movable_asset';
 
 export interface Resource {
   id: string;
   name: string;
   type: ResourceType;
+  category: ResourceCategory;
   capacity: number;
   location: string;
   amenities: string[];
   department?: string;
   isAvailable: boolean;
+  requiresApproval?: boolean;
+  maxBookingDuration?: number;
+  customType?: string; // For when type is 'others'
   image?: string;
 }
 
-export type BookingStatus = 'pending' | 'approved' | 'rejected';
+export type BookingStatus =
+  | 'auto_approved'
+  | 'pending_hod'
+  | 'pending_admin'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled';
+
+export type ApprovalLevel = 'none' | 'hod' | 'admin';
+
+export type BookingType =
+  | 'regular'
+  | 'remedial'
+  | 'project'
+  | 'event'
+  | 'industrial_visit'
+  | 'other';
 
 export interface TimeSlot {
   start: string;
@@ -34,13 +69,33 @@ export interface Booking {
   id: string;
   resourceId: string;
   resourceName: string;
+  resourceType?: ResourceType;
+  resourceCategory?: ResourceCategory;
   userId: string;
   userName: string;
   userRole: UserRole;
+  userDepartment?: string;
   date: string;
   timeSlot: TimeSlot;
+  duration: number;
   purpose: string;
+  bookingType: BookingType;
   status: BookingStatus;
+  requiresApproval: boolean;
+  approvalLevel: ApprovalLevel;
+  approvedBy?: {
+    id: string;
+    name: string;
+    role: UserRole;
+  };
+  approvedAt?: string;
+  rejectedBy?: {
+    id: string;
+    name: string;
+    role: UserRole;
+  };
+  rejectedAt?: string;
+  rejectionReason?: string;
   createdAt: string;
   department?: string;
 }
@@ -50,4 +105,7 @@ export interface DashboardStats {
   totalBookings: number;
   pendingBookings: number;
   approvedBookings: number;
+  autoApprovedBookings?: number;
+  rejectedBookings?: number;
 }
+

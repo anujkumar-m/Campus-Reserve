@@ -57,7 +57,7 @@ exports.assignRole = async (req, res) => {
             department,
             clubName,
             authProvider: 'google',
-            googleId: 'pending', // Placeholder until Google signup
+            // googleId is left undefined until user signs in with Google
         });
 
         res.status(201).json({
@@ -84,7 +84,10 @@ exports.assignRole = async (req, res) => {
 // @access  Private/Admin
 exports.getPendingRoles = async (req, res) => {
     try {
-        const pendingUsers = await User.find({ googleId: 'pending' });
+        const pendingUsers = await User.find({
+            authProvider: 'google',
+            googleId: { $exists: false }
+        });
 
         res.status(200).json({
             success: true,

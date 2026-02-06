@@ -25,8 +25,7 @@ const userSchema = new mongoose.Schema({
     },
     googleId: {
         type: String,
-        sparse: true,
-        unique: true,
+        sparse: true, // Allows multiple null/undefined values
     },
     authProvider: {
         type: String,
@@ -41,8 +40,17 @@ const userSchema = new mongoose.Schema({
     },
     department: {
         type: String,
+        enum: ['CS', 'AL', 'AD', 'IT', 'MZ', 'ME', 'EE', 'EC', 'EI', 'CE', 'FD', 'FT', 'BT'],
         required: function () {
-            return ['faculty', 'student', 'department'].includes(this.role);
+            // Department required for students and HODs (department role)
+            // Faculty can select department on first login
+            return ['student', 'department'].includes(this.role);
+        },
+    },
+    year: {
+        type: String, // Format: 2023, 2024, etc.
+        required: function () {
+            return this.role === 'student';
         },
     },
     clubName: {
@@ -54,6 +62,17 @@ const userSchema = new mongoose.Schema({
     createdAt: {
         type: Date,
         default: Date.now,
+    },
+    isActive: {
+        type: Boolean,
+        default: true,
+    },
+    blockedAt: {
+        type: Date,
+    },
+    blockedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
     },
 });
 

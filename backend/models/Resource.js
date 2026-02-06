@@ -8,8 +8,51 @@ const resourceSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ['classroom', 'lab', 'seminar_hall'],
+        enum: [
+            'classroom',
+            'lab',
+            'department_library',
+            'department_seminar_hall',
+            'central_seminar_hall',
+            'auditorium',
+            'conference_room',
+            'bus',
+            'projector',
+            'camera',
+            'sound_system',
+            'other_equipment',
+            'others'
+        ],
         required: [true, 'Please specify resource type'],
+    },
+    customType: {
+        type: String,
+        trim: true,
+        required: function () {
+            return this.type === 'others';
+        }
+    },
+    category: {
+        type: String,
+        enum: ['department', 'central', 'movable_asset'],
+        required: [true, 'Please specify resource category'],
+        default: function () {
+            // Auto-categorize based on type
+            if (['classroom', 'lab', 'department_library', 'department_seminar_hall'].includes(this.type)) {
+                return 'department';
+            } else if (['central_seminar_hall', 'auditorium', 'conference_room', 'bus'].includes(this.type)) {
+                return 'central';
+            } else {
+                return 'movable_asset';
+            }
+        }
+    },
+    isMovable: {
+        type: Boolean,
+        default: function () {
+            // Auto-set based on category
+            return this.category === 'movable_asset';
+        }
     },
     capacity: {
         type: Number,
@@ -28,10 +71,33 @@ const resourceSchema = new mongoose.Schema({
     department: {
         type: String,
         trim: true,
+        required: function () {
+            return this.category === 'department';
+        }
     },
     isAvailable: {
         type: Boolean,
         default: true,
+    },
+    requiresApproval: {
+        type: Boolean,
+        default: function () {
+            // Central and movable assets always require approval
+            return this.category !== 'department';
+        }
+    },
+    maxBookingDuration: {
+        type: Number, // in hours
+        default: function () {
+            // Default max duration based on resource type
+            if (this.type === 'classroom' || this.type === 'lab') {
+                return 8; // 8 hours max
+            } else if (this.type === 'bus') {
+                return 24; // Full day
+            } else {
+                return 4; // 4 hours for most resources
+            }
+        }
     },
     image: {
         type: String,
@@ -43,6 +109,6 @@ const resourceSchema = new mongoose.Schema({
 });
 
 // Index for efficient queries
-resourceSchema.index({ type: 1, department: 1, isAvailable: 1 });
+resourceSchema.index({ type: 1, category: 1, department: 1, isAvailable: 1 });
 
 module.exports = mongoose.model('Resource', resourceSchema);
