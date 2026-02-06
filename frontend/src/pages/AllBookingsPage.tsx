@@ -1,5 +1,7 @@
 import { useBooking } from '@/contexts/BookingContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { BookingCard } from '@/components/BookingCard';
+import { AdminBookingCard } from '@/components/AdminBookingCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Calendar, Clock, CheckCircle, XCircle, Search } from 'lucide-react';
@@ -7,6 +9,7 @@ import { useState } from 'react';
 
 export default function AllBookingsPage() {
   const { bookings } = useBooking();
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
 
   const filteredBookings = bookings.filter((b) =>
@@ -15,16 +18,21 @@ export default function AllBookingsPage() {
     b.purpose.toLowerCase().includes(search.toLowerCase())
   );
 
-  const pendingBookings = filteredBookings.filter((b) => b.status === 'pending');
+  const pendingBookings = filteredBookings.filter((b) =>
+    b.status === 'pending_hod' || b.status === 'pending_admin' || b.status === 'auto_approved'
+  );
   const approvedBookings = filteredBookings.filter((b) => b.status === 'approved');
   const rejectedBookings = filteredBookings.filter((b) => b.status === 'rejected');
+
+  const isAdmin = user?.role === 'admin';
+  const BookingComponent = isAdmin ? AdminBookingCard : BookingCard;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">All Bookings</h1>
         <p className="text-muted-foreground">
-          View and manage all resource bookings across the system
+          {isAdmin ? 'Manage all resource bookings across the system' : 'View all resource bookings across the system'}
         </p>
       </div>
 
@@ -63,7 +71,7 @@ export default function AllBookingsPage() {
           {filteredBookings.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredBookings.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} />
+                <BookingComponent key={booking.id} booking={booking} />
               ))}
             </div>
           ) : (
@@ -75,7 +83,7 @@ export default function AllBookingsPage() {
           {pendingBookings.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {pendingBookings.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} />
+                <BookingComponent key={booking.id} booking={booking} />
               ))}
             </div>
           ) : (
@@ -87,7 +95,7 @@ export default function AllBookingsPage() {
           {approvedBookings.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {approvedBookings.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} />
+                <BookingComponent key={booking.id} booking={booking} />
               ))}
             </div>
           ) : (
@@ -99,7 +107,7 @@ export default function AllBookingsPage() {
           {rejectedBookings.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {rejectedBookings.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} />
+                <BookingComponent key={booking.id} booking={booking} />
               ))}
             </div>
           ) : (

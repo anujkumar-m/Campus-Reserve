@@ -22,21 +22,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Check for existing session
     const initAuth = async () => {
+      console.log('🔐 AuthContext: Initializing auth...');
       const token = authService.getToken();
       const storedUser = authService.getStoredUser();
 
+      console.log('🔐 Token exists:', !!token);
+      console.log('🔐 Stored user exists:', !!storedUser);
+
       if (token && storedUser) {
+        console.log('🔐 Found token and user, verifying with backend...');
         try {
           // Verify token is still valid by fetching current user
           const currentUser = await authService.getCurrentUser();
+          console.log('✅ Token verified, user authenticated:', currentUser.email);
           setUser(currentUser);
-        } catch (error) {
+        } catch (error: any) {
           // Token is invalid, clear storage
+          console.error('❌ Token verification failed:', error.response?.status, error.message);
+          console.log('🧹 Clearing invalid token and user data');
           authService.logout();
           setUser(null);
         }
+      } else {
+        console.log('ℹ️ No token or user found, user not authenticated');
       }
       setIsLoading(false);
+      console.log('🔐 AuthContext: Initialization complete');
     };
 
     initAuth();

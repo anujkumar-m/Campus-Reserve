@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useBooking } from '@/contexts/BookingContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Resource, ResourceType } from '@/types';
+import { Resource, ResourceType, ResourceCategory } from '@/types';
 import { ResourceCard } from '@/components/ResourceCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,23 +26,37 @@ export default function ResourcesPage() {
     const matchesSearch = resource.name.toLowerCase().includes(search.toLowerCase()) ||
       resource.location.toLowerCase().includes(search.toLowerCase());
     const matchesType = typeFilter === 'all' || resource.type === typeFilter;
-    
-    // Department users only see their department's resources
+
+    // Department role users only see their department's resources
+    // Students can see all department resources (but backend will restrict booking to their own dept)
     if (user?.role === 'department' && user.department) {
       return matchesSearch && matchesType && resource.department === user.department;
     }
-    
+
     return matchesSearch && matchesType;
   });
 
   const handleSaveResource = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
+
+    const type = formData.get('type') as ResourceType;
+
+    // Auto-determine category based on type
+    let category: ResourceCategory;
+    if (['classroom', 'lab', 'department_library', 'department_seminar_hall'].includes(type)) {
+      category = 'department';
+    } else if (['central_seminar_hall', 'auditorium', 'conference_room', 'bus'].includes(type)) {
+      category = 'central';
+    } else {
+      category = 'movable_asset';
+    }
+
     const resourceData: Resource = {
       id: editingResource?.id || `res-${Date.now()}`,
       name: formData.get('name') as string,
-      type: formData.get('type') as ResourceType,
+      type,
+      category,
       capacity: parseInt(formData.get('capacity') as string),
       location: formData.get('location') as string,
       amenities: (formData.get('amenities') as string).split(',').map((a) => a.trim()),
@@ -78,12 +92,12 @@ export default function ResourcesPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Resources</h1>
           <p className="text-muted-foreground">
-            {user?.role === 'department' 
-              ? 'Manage your department resources' 
+            {user?.role === 'department'
+              ? 'Manage your department resources'
               : 'Browse and book available resources'}
           </p>
         </div>
-        
+
         {isAdmin && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -99,11 +113,11 @@ export default function ResourcesPage() {
               <form onSubmit={handleSaveResource} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Resource Name</Label>
-                  <Input 
-                    id="name" 
-                    name="name" 
+                  <Input
+                    id="name"
+                    name="name"
                     defaultValue={editingResource?.name}
-                    required 
+                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -115,44 +129,53 @@ export default function ResourcesPage() {
                     <SelectContent>
                       <SelectItem value="classroom">Classroom</SelectItem>
                       <SelectItem value="lab">Laboratory</SelectItem>
-                      <SelectItem value="seminar_hall">Seminar Hall</SelectItem>
+                      <SelectItem value="department_library">Department Library</SelectItem>
+                      <SelectItem value="department_seminar_hall">Department Seminar Hall</SelectItem>
+                      <SelectItem value="central_seminar_hall">Central Seminar Hall</SelectItem>
+                      <SelectItem value="auditorium">Auditorium</SelectItem>
+                      <SelectItem value="conference_room">Conference Room</SelectItem>
+                      <SelectItem value="bus">Bus</SelectItem>
+                      <SelectItem value="projector">Projector</SelectItem>
+                      <SelectItem value="camera">Camera</SelectItem>
+                      <SelectItem value="sound_system">Sound System</SelectItem>
+                      <SelectItem value="other_equipment">Other Equipment</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="capacity">Capacity</Label>
-                    <Input 
-                      id="capacity" 
-                      name="capacity" 
-                      type="number" 
+                    <Input
+                      id="capacity"
+                      name="capacity"
+                      type="number"
                       defaultValue={editingResource?.capacity}
-                      required 
+                      required
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="department">Department</Label>
-                    <Input 
-                      id="department" 
-                      name="department" 
+                    <Input
+                      id="department"
+                      name="department"
                       defaultValue={editingResource?.department}
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="location">Location</Label>
-                  <Input 
-                    id="location" 
-                    name="location" 
+                  <Input
+                    id="location"
+                    name="location"
                     defaultValue={editingResource?.location}
-                    required 
+                    required
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="amenities">Amenities (comma-separated)</Label>
-                  <Textarea 
-                    id="amenities" 
-                    name="amenities" 
+                  <Textarea
+                    id="amenities"
+                    name="amenities"
                     defaultValue={editingResource?.amenities.join(', ')}
                     placeholder="Projector, Whiteboard, AC"
                   />
@@ -186,7 +209,16 @@ export default function ResourcesPage() {
             <SelectItem value="all">All Types</SelectItem>
             <SelectItem value="classroom">Classrooms</SelectItem>
             <SelectItem value="lab">Laboratories</SelectItem>
-            <SelectItem value="seminar_hall">Seminar Halls</SelectItem>
+            <SelectItem value="department_library">Department Libraries</SelectItem>
+            <SelectItem value="department_seminar_hall">Department Seminar Halls</SelectItem>
+            <SelectItem value="central_seminar_hall">Central Seminar Halls</SelectItem>
+            <SelectItem value="auditorium">Auditoriums</SelectItem>
+            <SelectItem value="conference_room">Conference Rooms</SelectItem>
+            <SelectItem value="bus">Buses</SelectItem>
+            <SelectItem value="projector">Projectors</SelectItem>
+            <SelectItem value="camera">Cameras</SelectItem>
+            <SelectItem value="sound_system">Sound Systems</SelectItem>
+            <SelectItem value="other_equipment">Other Equipment</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -194,8 +226,8 @@ export default function ResourcesPage() {
       {/* Resource Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredResources.map((resource) => (
-          <ResourceCard 
-            key={resource.id} 
+          <ResourceCard
+            key={resource.id}
             resource={resource}
             showActions={isAdmin}
             onEdit={handleEdit}

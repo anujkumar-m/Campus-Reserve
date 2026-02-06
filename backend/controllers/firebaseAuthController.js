@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { parseEmail, extractNameFromEmail } = require('../utils/emailParser');
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -24,19 +25,20 @@ exports.verifyGoogleToken = async (req, res) => {
             });
         }
 
+        // Parse email to validate and extract role info
+        const emailInfo = parseEmail(email);
+
+        if (!emailInfo.isValid) {
+            return res.status(403).json({
+                success: false,
+                message: emailInfo.error,
+            });
+        }
+
         // Check if user exists with this email
         let user = await User.findOne({ email });
 
         if (user) {
-            // User exists - check if admin trying to use Google login
-            if (user.role === 'admin') {
-                console.log('❌ Admin attempting Google login');
-                return res.status(403).json({
-                    success: false,
-                    message: 'Admin users must use manual login with email and password.',
-                });
-            }
-
             // Update user with Google ID if not already set
             if (!user.googleId) {
                 user.googleId = googleId;
@@ -45,14 +47,32 @@ exports.verifyGoogleToken = async (req, res) => {
                 console.log('✅ Updated existing user with Google auth');
             }
         } else {
-            // Create new user with Google auth
-            user = await User.create({
-                name: name || email.split('@')[0],
+            // Prepare new user data
+            const userData = {
+                name: name || extractNameFromEmail(email),
                 email,
                 googleId,
                 authProvider: 'google',
-                role: 'student', // Default role, admin can change later
-            });
+                role: emailInfo.role
+            };
+
+            // Add department if detected
+            if (emailInfo.department) {
+                userData.department = emailInfo.department;
+            }
+
+            // Add year for students
+            if (emailInfo.year) {
+                userData.year = emailInfo.year;
+            }
+
+            // Add club name for clubs
+            if (emailInfo.clubName) {
+                userData.clubName = emailInfo.clubName;
+            }
+
+            // Create new user
+            user = await User.create(userData);
             console.log('✅ Created new user with Google auth');
         }
 
@@ -68,6 +88,7 @@ exports.verifyGoogleToken = async (req, res) => {
                 email: user.email,
                 role: user.role,
                 department: user.department,
+                year: user.year,
                 clubName: user.clubName,
             },
         });

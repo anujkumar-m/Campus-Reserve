@@ -1,8 +1,10 @@
 import { Booking } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, MapPin, User } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { BookingStatusBadge } from './BookingStatusBadge';
+import { Calendar, Clock, MapPin, User, Ban } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 interface BookingCardProps {
   booking: Booking;
@@ -10,21 +12,19 @@ interface BookingCardProps {
   showActions?: boolean;
   onApprove?: (id: string) => void;
   onReject?: (id: string) => void;
+  showCancel?: boolean;
+  onCancel?: (id: string) => void;
 }
 
-const statusStyles = {
-  pending: 'status-pending border',
-  approved: 'status-approved border',
-  rejected: 'status-rejected border',
-};
-
-const statusLabels = {
-  pending: 'Pending',
-  approved: 'Approved',
-  rejected: 'Rejected',
-};
-
-export function BookingCard({ booking, compact = false, showActions, onApprove, onReject }: BookingCardProps) {
+export function BookingCard({
+  booking,
+  compact = false,
+  showActions,
+  onApprove,
+  onReject,
+  showCancel,
+  onCancel
+}: BookingCardProps) {
   if (compact) {
     return (
       <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
@@ -39,9 +39,7 @@ export function BookingCard({ booking, compact = false, showActions, onApprove, 
             </p>
           </div>
         </div>
-        <Badge variant="outline" className={cn('shrink-0', statusStyles[booking.status])}>
-          {statusLabels[booking.status]}
-        </Badge>
+        <BookingStatusBadge status={booking.status} />
       </div>
     );
   }
@@ -54,27 +52,38 @@ export function BookingCard({ booking, compact = false, showActions, onApprove, 
             <h3 className="font-semibold text-foreground">{booking.resourceName}</h3>
             <p className="text-sm text-muted-foreground">{booking.purpose}</p>
           </div>
-          <Badge variant="outline" className={statusStyles[booking.status]}>
-            {statusLabels[booking.status]}
-          </Badge>
+          <BookingStatusBadge status={booking.status} />
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Calendar className="h-4 w-4" />
-            <span>{booking.date}</span>
+            <span>{format(new Date(booking.date), 'MMM dd, yyyy')}</span>
           </div>
           <div className="flex items-center gap-2 text-muted-foreground">
             <Clock className="h-4 w-4" />
             <span>{booking.timeSlot.start} - {booking.timeSlot.end}</span>
           </div>
-          <div className="flex items-center gap-2 text-muted-foreground col-span-2">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <User className="h-4 w-4" />
             <span>{booking.userName}</span>
           </div>
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Clock className="h-4 w-4" />
+            <span>{booking.duration}h duration</span>
+          </div>
         </div>
 
-        {showActions && booking.status === 'pending' && (
+        {/* Show rejection reason if rejected */}
+        {booking.status === 'rejected' && booking.rejectionReason && (
+          <div className="mt-3 p-2 rounded-lg bg-destructive/10 border border-destructive/20">
+            <p className="text-xs font-medium text-destructive mb-1">Rejection Reason:</p>
+            <p className="text-xs text-muted-foreground">{booking.rejectionReason}</p>
+          </div>
+        )}
+
+        {/* Approval actions for HOD/Admin */}
+        {showActions && (booking.status === 'pending_hod' || booking.status === 'pending_admin') && (
           <div className="flex gap-2 mt-4 pt-4 border-t border-border">
             <button
               onClick={() => onApprove?.(booking.id)}
@@ -88,6 +97,21 @@ export function BookingCard({ booking, compact = false, showActions, onApprove, 
             >
               Reject
             </button>
+          </div>
+        )}
+
+        {/* Cancel button for user's own bookings */}
+        {showCancel && onCancel && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <Button
+              onClick={() => onCancel(booking.id)}
+              variant="outline"
+              size="sm"
+              className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <Ban className="h-4 w-4 mr-2" />
+              Cancel Booking
+            </Button>
           </div>
         )}
       </CardContent>

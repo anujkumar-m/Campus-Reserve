@@ -7,17 +7,46 @@ exports.getResources = async (req, res) => {
     try {
         let query = {};
 
-        // Filter by type
+        // Role-based filtering
+        const userRole = req.user.role;
+        const userDepartment = req.user.department;
+
+        if (userRole === 'student') {
+            // Students can see ALL department-level resources (but can only book from their own dept)
+            query.category = 'department';
+            // Removed department filter - students can browse all department resources
+            // Booking validation will still restrict them to their own department
+            query.type = { $in: ['department_library', 'classroom', 'lab', 'department_seminar_hall'] };
+            // Only show available labs to students
+            query.$or = [
+                { type: { $ne: 'lab' } },
+                { type: 'lab', isAvailable: true }
+            ];
+        } else if (userRole === 'faculty') {
+            // Faculty can see department and central resources (not movable assets)
+            query.category = { $in: ['department', 'central'] };
+        } else if (userRole === 'department') {
+            // HOD can see all department resources + central resources
+            query.$or = [
+                { category: 'department', department: userDepartment },
+                { category: 'central' }
+            ];
+        }
+        // Admin and club can see all resources (no filtering)
+
+        // Additional filters from query params
         if (req.query.type) {
             query.type = req.query.type;
         }
 
-        // Filter by department
         if (req.query.department) {
             query.department = req.query.department;
         }
 
-        // Filter by availability
+        if (req.query.category) {
+            query.category = req.query.category;
+        }
+
         if (req.query.isAvailable !== undefined) {
             query.isAvailable = req.query.isAvailable === 'true';
         }

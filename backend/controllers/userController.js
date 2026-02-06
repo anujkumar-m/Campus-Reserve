@@ -85,7 +85,17 @@ exports.updateUser = async (req, res) => {
 // @access  Private/Admin
 exports.deleteUser = async (req, res) => {
     try {
-        const user = await User.findByIdAndDelete(req.params.id);
+        const userId = req.params.id;
+
+        // Prevent admin from deleting themselves
+        if (userId === req.user._id.toString()) {
+            return res.status(400).json({
+                success: false,
+                message: 'You cannot delete yourself'
+            });
+        }
+
+        const user = await User.findById(userId);
 
         if (!user) {
             return res.status(404).json({
@@ -93,6 +103,22 @@ exports.deleteUser = async (req, res) => {
                 message: 'User not found',
             });
         }
+
+        // Check for active bookings
+        const Booking = require('../models/Booking');
+        const activeBookingsCount = await Booking.countDocuments({
+            userId: userId,
+            status: { $in: ['pending_hod', 'pending_admin', 'auto_approved', 'approved'] }
+        });
+
+        if (activeBookingsCount > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot delete user with ${activeBookingsCount} active booking(s). Please cancel or complete them first.`
+            });
+        }
+
+        await User.findByIdAndDelete(userId);
 
         res.status(200).json({
             success: true,
@@ -102,6 +128,112 @@ exports.deleteUser = async (req, res) => {
         res.status(500).json({
             success: false,
             message: error.message,
+        });
+    }
+};
+
+// @desc    Block user
+// @route   PUT /api/users/:id/block
+// @access  Private/Admin
+exports.blockUser = async (req, res) => {
+    try {
+        const { reason } = req.body;
+        const userId = req.params.id;
+
+        // Prevent admin from blocking themselves
+        if (userId === req.user._id.toString()) {
+            return res.status(400).json({
+                success: false,
+                message: 'You cannot block yourself'
+            });
+        }
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        if (!user.isActive) {
+            return res.status(400).json({
+                success: false,
+                message: 'User is already blocked'
+            });
+        }
+
+        // Block the user
+        user.isActive = false;
+        user.blockedAt = new Date();
+        user.blockedBy = req.user._id;
+        await user.save();
+
+        // Cancel all pending/approved bookings
+        const Booking = require('../models/Booking');
+        await Booking.updateMany(
+            {
+                userId: userId,
+                status: { $in: ['pending_hod', 'pending_admin', 'auto_approved', 'approved'] }
+            },
+            {
+                status: 'cancelled',
+                rejectionReason: `User blocked: ${reason || 'Administrative action'}`
+            }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'User blocked successfully',
+            data: user
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+// @desc    Unblock user
+// @route   PUT /api/users/:id/unblock
+// @access  Private/Admin
+exports.unblockUser = async (req, res) => {
+    try {
+        const userId = req.params.id;
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        if (user.isActive) {
+            return res.status(400).json({
+                success: false,
+                message: 'User is not blocked'
+            });
+        }
+
+        // Unblock the user
+        user.isActive = true;
+        user.blockedAt = null;
+        user.blockedBy = null;
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'User unblocked successfully',
+            data: user
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
         });
     }
 };

@@ -39,6 +39,7 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
     { title: 'Resources', url: '/resources', icon: Building2 },
     { title: 'All Bookings', url: '/bookings', icon: ClipboardList },
+    { title: 'Approvals', url: '/approvals', icon: CheckCircle },
     { title: 'Users', url: '/users', icon: Users },
   ],
   faculty: [

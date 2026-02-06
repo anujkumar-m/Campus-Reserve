@@ -1,5 +1,5 @@
 import api from './api';
-import { Booking, BookingStatus } from '@/types';
+import { Booking, BookingStatus, BookingType } from '@/types';
 
 interface BookingsResponse {
     success: boolean;
@@ -10,6 +10,7 @@ interface BookingsResponse {
 interface BookingResponse {
     success: boolean;
     data: Booking;
+    message?: string;
 }
 
 interface CreateBookingData {
@@ -20,6 +21,7 @@ interface CreateBookingData {
         end: string;
     };
     purpose: string;
+    bookingType?: BookingType;
 }
 
 export const bookingService = {
@@ -36,9 +38,15 @@ export const bookingService = {
         return response.data.data;
     },
 
-    // Get pending bookings
+    // Get pending bookings (legacy)
     getPending: async (): Promise<Booking[]> => {
         const response = await api.get<BookingsResponse>('/bookings/pending');
+        return response.data.data;
+    },
+
+    // Get bookings pending approval (new)
+    getPendingApprovals: async (): Promise<Booking[]> => {
+        const response = await api.get<BookingsResponse>('/bookings/pending-approval');
         return response.data.data;
     },
 
@@ -54,7 +62,24 @@ export const bookingService = {
         return response.data.data;
     },
 
-    // Update booking status
+    // Approve booking
+    approve: async (id: string): Promise<Booking> => {
+        const response = await api.put<BookingResponse>(`/bookings/${id}/approve`);
+        return response.data.data;
+    },
+
+    // Reject booking
+    reject: async (id: string, reason: string): Promise<Booking> => {
+        const response = await api.put<BookingResponse>(`/bookings/${id}/reject`, { reason });
+        return response.data.data;
+    },
+
+    // Cancel booking
+    cancel: async (id: string): Promise<void> => {
+        await api.put(`/bookings/${id}/cancel`);
+    },
+
+    // Update booking status (legacy)
     updateStatus: async (id: string, status: BookingStatus): Promise<Booking> => {
         const response = await api.put<BookingResponse>(`/bookings/${id}/status`, { status });
         return response.data.data;
@@ -64,4 +89,34 @@ export const bookingService = {
     delete: async (id: string): Promise<void> => {
         await api.delete(`/bookings/${id}`);
     },
+
+    // Get audit log for booking
+    getAudit: async (id: string): Promise<any[]> => {
+        const response = await api.get<{ success: boolean; count: number; data: any[] }>(`/bookings/${id}/audit`);
+        return response.data.data;
+    },
+
+    // Admin: Reschedule booking
+    reschedule: async (id: string, data: { date: string; timeSlot: { start: string; end: string }; reason?: string }): Promise<Booking> => {
+        const response = await api.put<BookingResponse>(`/bookings/${id}/reschedule`, data);
+        return response.data.data;
+    },
+
+    // Admin: Delete booking
+    deleteAdmin: async (id: string, reason?: string): Promise<void> => {
+        await api.delete(`/bookings/${id}/admin`, { data: { reason } });
+    },
+
+    // Admin: Approve booking (override)
+    approveAdmin: async (id: string): Promise<Booking> => {
+        const response = await api.put<BookingResponse>(`/bookings/${id}/approve-admin`);
+        return response.data.data;
+    },
+
+    // Admin: Reject booking (override)
+    rejectAdmin: async (id: string, reason: string): Promise<Booking> => {
+        const response = await api.put<BookingResponse>(`/bookings/${id}/reject-admin`, { reason });
+        return response.data.data;
+    },
 };
+

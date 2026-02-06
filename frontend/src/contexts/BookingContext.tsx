@@ -16,6 +16,10 @@ interface BookingContextType {
   addBooking: (booking: any) => Promise<void>;
   updateBookingStatus: (id: string, status: BookingStatus) => Promise<void>;
   deleteBooking: (id: string) => Promise<void>;
+  approveBooking: (id: string) => Promise<void>;
+  rejectBooking: (id: string, reason: string) => Promise<void>;
+  cancelBooking: (id: string) => Promise<void>;
+  getPendingApprovals: () => Promise<Booking[]>;
   getResourceById: (id: string) => Resource | undefined;
   getBookingsByUser: (userId: string) => Booking[];
   getBookingsByResource: (resourceId: string) => Booking[];
@@ -121,10 +125,46 @@ export function BookingProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  // Approve booking mutation
+  const approveBookingMutation = useMutation({
+    mutationFn: (id: string) => bookingService.approve(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      toast({ title: 'Success', description: 'Booking approved successfully' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.response?.data?.message || 'Failed to approve booking', variant: 'destructive' });
+    },
+  });
+
+  // Reject booking mutation
+  const rejectBookingMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => bookingService.reject(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      toast({ title: 'Success', description: 'Booking rejected' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.response?.data?.message || 'Failed to reject booking', variant: 'destructive' });
+    },
+  });
+
+  // Cancel booking mutation
+  const cancelBookingMutation = useMutation({
+    mutationFn: (id: string) => bookingService.cancel(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      toast({ title: 'Success', description: 'Booking cancelled successfully' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.response?.data?.message || 'Failed to cancel booking', variant: 'destructive' });
+    },
+  });
+
   const getResourceById = (id: string) => resources.find((r) => r.id === id);
   const getBookingsByUser = (userId: string) => bookings.filter((b) => b.userId === userId);
   const getBookingsByResource = (resourceId: string) => bookings.filter((b) => b.resourceId === resourceId);
-  const getPendingBookings = () => bookings.filter((b) => b.status === 'pending');
+  const getPendingBookings = () => bookings.filter((b) => b.status === 'pending_hod' || b.status === 'pending_admin');
   const getBookingsByDepartment = (department: string) =>
     bookings.filter((b) => b.department === department);
 
@@ -141,6 +181,10 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         addBooking: async (booking) => { await addBookingMutation.mutateAsync(booking); },
         updateBookingStatus: async (id, status) => { await updateBookingStatusMutation.mutateAsync({ id, status }); },
         deleteBooking: async (id) => { await deleteBookingMutation.mutateAsync(id); },
+        approveBooking: async (id) => { await approveBookingMutation.mutateAsync(id); },
+        rejectBooking: async (id, reason) => { await rejectBookingMutation.mutateAsync({ id, reason }); },
+        cancelBooking: async (id) => { await cancelBookingMutation.mutateAsync(id); },
+        getPendingApprovals: async () => { return await bookingService.getPendingApprovals(); },
         getResourceById,
         getBookingsByUser,
         getBookingsByResource,

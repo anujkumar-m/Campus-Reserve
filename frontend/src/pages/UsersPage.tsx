@@ -10,9 +10,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Users, GraduationCap, BookOpen, Building2, Sparkles, UserPlus } from 'lucide-react';
+import { Users, GraduationCap, BookOpen, Building2, Sparkles, UserPlus, ShieldOff, ShieldCheck, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { BlockUserDialog } from '@/components/BlockUserDialog';
+import { DeleteUserDialog } from '@/components/DeleteUserDialog';
+import { toast as sonnerToast } from 'sonner';
 
 const roleIcons = {
   admin: Building2,
@@ -35,6 +38,8 @@ export default function UsersPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [blockUserData, setBlockUserData] = useState<any>(null);
+  const [deleteUserData, setDeleteUserData] = useState<any>(null);
 
   // Form state
   const [email, setEmail] = useState('');
@@ -67,6 +72,18 @@ export default function UsersPage() {
         description: error.response?.data?.message || 'Failed to assign role',
         variant: 'destructive',
       });
+    },
+  });
+
+  // Unblock user mutation
+  const unblockMutation = useMutation({
+    mutationFn: (userId: string) => userService.unblock(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      sonnerToast.success('User unblocked successfully');
+    },
+    onError: (error: any) => {
+      sonnerToast.error(error.response?.data?.message || 'Failed to unblock user');
     },
   });
 
@@ -232,6 +249,9 @@ export default function UsersPage() {
             <div className="space-y-3">
               {users.map((user: any) => {
                 const Icon = roleIcons[user.role as keyof typeof roleIcons];
+                const isBlocked = user.isActive === false;
+                const isSelf = user.id === currentUser?.id;
+
                 return (
                   <div
                     key={user.id}
@@ -239,12 +259,19 @@ export default function UsersPage() {
                   >
                     <div className="flex items-center gap-4">
                       <Avatar>
-                        <AvatarFallback className="bg-primary text-primary-foreground">
+                        <AvatarFallback className={isBlocked ? "bg-destructive/20 text-destructive" : "bg-primary text-primary-foreground"}>
                           {user.name.split(' ').map((n: string) => n[0]).join('')}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium text-foreground">{user.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-foreground">{user.name}</p>
+                          {isBlocked && (
+                            <Badge variant="destructive" className="text-xs">
+                              Blocked
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground">{user.email}</p>
                       </div>
                     </div>
@@ -263,6 +290,40 @@ export default function UsersPage() {
                         <Icon className="h-3 w-3 mr-1" />
                         <span className="capitalize">{user.role}</span>
                       </Badge>
+
+                      {/* Admin Actions */}
+                      {!isSelf && (
+                        <div className="flex gap-2">
+                          {isBlocked ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => unblockMutation.mutate(user.id)}
+                              disabled={unblockMutation.isPending}
+                            >
+                              <ShieldCheck className="h-4 w-4 mr-1" />
+                              Unblock
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setBlockUserData(user)}
+                            >
+                              <ShieldOff className="h-4 w-4 mr-1" />
+                              Block
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setDeleteUserData(user)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -271,6 +332,18 @@ export default function UsersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialogs */}
+      <BlockUserDialog
+        user={blockUserData}
+        open={!!blockUserData}
+        onOpenChange={(open) => !open && setBlockUserData(null)}
+      />
+      <DeleteUserDialog
+        user={deleteUserData}
+        open={!!deleteUserData}
+        onOpenChange={(open) => !open && setDeleteUserData(null)}
+      />
     </div>
   );
 }
