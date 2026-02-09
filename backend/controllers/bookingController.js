@@ -39,41 +39,43 @@ exports.getBookings = async (req, res) => {
             .populate('rejectedBy', 'name email role')
             .sort('-createdAt');
 
-        // Format response to match frontend expectations
-        const formattedBookings = bookings.map(booking => ({
-            id: booking._id,
-            resourceId: booking.resourceId._id,
-            resourceName: booking.resourceId.name,
-            resourceType: booking.resourceId.type,
-            resourceCategory: booking.resourceId.category,
-            userId: booking.userId._id,
-            userName: booking.userId.name,
-            userRole: booking.userId.role,
-            userDepartment: booking.userId.department,
-            date: booking.date,
-            timeSlot: booking.timeSlot,
-            duration: booking.duration,
-            purpose: booking.purpose,
-            bookingType: booking.bookingType,
-            status: booking.status,
-            requiresApproval: booking.requiresApproval,
-            approvalLevel: booking.approvalLevel,
-            approvedBy: booking.approvedBy ? {
-                id: booking.approvedBy._id,
-                name: booking.approvedBy.name,
-                role: booking.approvedBy.role
-            } : null,
-            approvedAt: booking.approvedAt,
-            rejectedBy: booking.rejectedBy ? {
-                id: booking.rejectedBy._id,
-                name: booking.rejectedBy.name,
-                role: booking.rejectedBy.role
-            } : null,
-            rejectedAt: booking.rejectedAt,
-            rejectionReason: booking.rejectionReason,
-            createdAt: booking.createdAt,
-            department: booking.department,
-        }));
+        // Filter out bookings with deleted resources or users and format response
+        const formattedBookings = bookings
+            .filter(booking => booking.resourceId && booking.userId) // Skip bookings with deleted resources/users
+            .map(booking => ({
+                id: booking._id,
+                resourceId: booking.resourceId._id,
+                resourceName: booking.resourceId.name,
+                resourceType: booking.resourceId.type,
+                resourceCategory: booking.resourceId.category,
+                userId: booking.userId._id,
+                userName: booking.userId.name,
+                userRole: booking.userId.role,
+                userDepartment: booking.userId.department,
+                date: booking.date,
+                timeSlot: booking.timeSlot,
+                duration: booking.duration,
+                purpose: booking.purpose,
+                bookingType: booking.bookingType,
+                status: booking.status,
+                requiresApproval: booking.requiresApproval,
+                approvalLevel: booking.approvalLevel,
+                approvedBy: booking.approvedBy ? {
+                    id: booking.approvedBy._id,
+                    name: booking.approvedBy.name,
+                    role: booking.approvedBy.role
+                } : null,
+                approvedAt: booking.approvedAt,
+                rejectedBy: booking.rejectedBy ? {
+                    id: booking.rejectedBy._id,
+                    name: booking.rejectedBy.name,
+                    role: booking.rejectedBy.role
+                } : null,
+                rejectedAt: booking.rejectedAt,
+                rejectionReason: booking.rejectionReason,
+                createdAt: booking.createdAt,
+                department: booking.department,
+            }));
 
         res.status(200).json({
             success: true,

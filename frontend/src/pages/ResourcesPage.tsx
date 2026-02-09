@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useBooking } from '@/contexts/BookingContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Resource, ResourceType, ResourceCategory } from '@/types';
+import { Resource, ResourceType, ResourceCategory, TimeSlot } from '@/types';
 import { ResourceCard } from '@/components/ResourceCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,8 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Filter } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Search, Plus, Filter, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { DEPARTMENT_LIST } from '@/constants/departments';
 
 export default function ResourcesPage() {
   const { resources, addResource, updateResource, deleteResource } = useBooking();
@@ -19,6 +21,20 @@ export default function ResourcesPage() {
   const [typeFilter, setTypeFilter] = useState<ResourceType | 'all'>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [customDepartment, setCustomDepartment] = useState('');
+
+  // Default time slots
+  const DEFAULT_TIME_SLOTS: TimeSlot[] = [
+    { label: '1 Hour', duration: 1, isDefault: true },
+    { label: '2 Hours', duration: 2, isDefault: false },
+    { label: 'Half Day', duration: 4, isDefault: false },
+    { label: 'Full Day', duration: 8, isDefault: false },
+  ];
+
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>(DEFAULT_TIME_SLOTS);
+  const [newSlotLabel, setNewSlotLabel] = useState('');
+  const [newSlotDuration, setNewSlotDuration] = useState('');
 
   const isAdmin = user?.role === 'admin';
 
@@ -27,8 +43,12 @@ export default function ResourcesPage() {
       resource.location.toLowerCase().includes(search.toLowerCase());
     const matchesType = typeFilter === 'all' || resource.type === typeFilter;
 
+    // Students only see their department's resources
+    if (user?.role === 'student' && user.department) {
+      return matchesSearch && matchesType && resource.department === user.department;
+    }
+
     // Department role users only see their department's resources
-    // Students can see all department resources (but backend will restrict booking to their own dept)
     if (user?.role === 'department' && user.department) {
       return matchesSearch && matchesType && resource.department === user.department;
     }
@@ -60,8 +80,11 @@ export default function ResourcesPage() {
       capacity: parseInt(formData.get('capacity') as string),
       location: formData.get('location') as string,
       amenities: (formData.get('amenities') as string).split(',').map((a) => a.trim()),
-      department: formData.get('department') as string || undefined,
+      department: selectedDepartment === 'other'
+        ? customDepartment
+        : (selectedDepartment === 'none' ? undefined : selectedDepartment),
       isAvailable: true,
+      availableTimeSlots: timeSlots.filter(slot => slot.isDefault !== false),
     };
 
     if (editingResource) {
@@ -74,10 +97,26 @@ export default function ResourcesPage() {
 
     setIsDialogOpen(false);
     setEditingResource(null);
+    setTimeSlots(DEFAULT_TIME_SLOTS);
   };
 
   const handleEdit = (resource: Resource) => {
     setEditingResource(resource);
+    // Check if department is in the predefined list
+    const isDepartmentInList = DEPARTMENT_LIST.some(dept => dept.value === resource.department);
+    if (isDepartmentInList) {
+      setSelectedDepartment(resource.department || '');
+      setCustomDepartment('');
+    } else {
+      setSelectedDepartment('other');
+      setCustomDepartment(resource.department || '');
+    }
+    // Load existing time slots or use defaults
+    if (resource.availableTimeSlots && resource.availableTimeSlots.length > 0) {
+      setTimeSlots(resource.availableTimeSlots);
+    } else {
+      setTimeSlots(DEFAULT_TIME_SLOTS);
+    }
     setIsDialogOpen(true);
   };
 
@@ -101,12 +140,17 @@ export default function ResourcesPage() {
         {isAdmin && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingResource(null)}>
+              <Button onClick={() => {
+                setEditingResource(null);
+                setSelectedDepartment('');
+                setCustomDepartment('');
+                setTimeSlots(DEFAULT_TIME_SLOTS);
+              }}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Resource
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingResource ? 'Edit Resource' : 'Add New Resource'}</DialogTitle>
               </DialogHeader>
@@ -155,13 +199,37 @@ export default function ResourcesPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="department">Department</Label>
-                    <Input
-                      id="department"
-                      name="department"
-                      defaultValue={editingResource?.department}
-                    />
+                    <Select
+                      value={selectedDepartment}
+                      onValueChange={setSelectedDepartment}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {DEPARTMENT_LIST.map((dept) => (
+                          <SelectItem key={dept.code} value={dept.value}>
+                            {dept.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="other">Other (Manual Entry)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
+                {selectedDepartment === 'other' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="customDepartment">Custom Department Name</Label>
+                    <Input
+                      id="customDepartment"
+                      placeholder="Enter department name"
+                      value={customDepartment}
+                      onChange={(e) => setCustomDepartment(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="location">Location</Label>
                   <Input
@@ -180,6 +248,82 @@ export default function ResourcesPage() {
                     placeholder="Projector, Whiteboard, AC"
                   />
                 </div>
+
+                {/* Time Slots Configuration */}
+                <div className="space-y-3 border-t pt-4">
+                  <Label>Available Time Slots</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Select which booking durations are available for this resource
+                  </p>
+
+                  <div className="space-y-2">
+                    {timeSlots.map((slot, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 rounded border">
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            id={`slot-${index}`}
+                            checked={slot.isDefault !== false}
+                            onCheckedChange={(checked) => {
+                              const updated = [...timeSlots];
+                              updated[index].isDefault = checked as boolean;
+                              setTimeSlots(updated);
+                            }}
+                          />
+                          <label htmlFor={`slot-${index}`} className="text-sm cursor-pointer">
+                            {slot.label} ({slot.duration}h)
+                          </label>
+                        </div>
+                        {index >= 4 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setTimeSlots(timeSlots.filter((_, i) => i !== index))}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add Custom Time Slot */}
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Label (e.g., 3 Hours)"
+                      value={newSlotLabel}
+                      onChange={(e) => setNewSlotLabel(e.target.value)}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Hours"
+                      value={newSlotDuration}
+                      onChange={(e) => setNewSlotDuration(e.target.value)}
+                      className="w-24"
+                      step="0.5"
+                      min="0.5"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (newSlotLabel && newSlotDuration) {
+                          setTimeSlots([...timeSlots, {
+                            label: newSlotLabel,
+                            duration: parseFloat(newSlotDuration),
+                            isDefault: true
+                          }]);
+                          setNewSlotLabel('');
+                          setNewSlotDuration('');
+                        }
+                      }}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
                 <Button type="submit" className="w-full">
                   {editingResource ? 'Update Resource' : 'Add Resource'}
                 </Button>

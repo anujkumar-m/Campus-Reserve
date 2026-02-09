@@ -99,6 +99,26 @@ const resourceSchema = new mongoose.Schema({
             }
         }
     },
+    availableTimeSlots: [{
+        label: {
+            type: String,
+            required: true
+        },
+        duration: {
+            type: Number, // in hours
+            required: true,
+            min: 0.5
+        },
+        isDefault: {
+            type: Boolean,
+            default: false
+        }
+    }],
+    // Default time slots if none specified
+    defaultTimeSlots: {
+        type: Boolean,
+        default: true
+    },
     image: {
         type: String,
     },

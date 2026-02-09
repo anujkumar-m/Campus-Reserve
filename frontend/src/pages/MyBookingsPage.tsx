@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { BookingCard } from '@/components/BookingCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar, Clock, CheckCircle, XCircle, Ban } from 'lucide-react';
+import { canCancelBooking } from '@/utils/bookingUtils';
 
 export default function MyBookingsPage() {
   const { user } = useAuth();
@@ -10,7 +11,7 @@ export default function MyBookingsPage() {
 
   if (!user) return null;
 
-  const bookings = getBookingsByUser(user.id);
+  const bookings = getBookingsByUser((user as any)._id || user.id);
   const pendingBookings = bookings.filter((b) => b.status === 'pending_hod' || b.status === 'pending_admin');
   const approvedBookings = bookings.filter((b) => b.status === 'approved' || b.status === 'auto_approved');
   const rejectedBookings = bookings.filter((b) => b.status === 'rejected');
@@ -65,7 +66,7 @@ export default function MyBookingsPage() {
                   key={booking.id}
                   booking={booking}
                   onCancel={handleCancel}
-                  showCancel={booking.status !== 'rejected' && booking.status !== 'cancelled'}
+                  showCancel={canCancelBooking(booking)}
                 />
               ))}
             </div>
@@ -82,7 +83,7 @@ export default function MyBookingsPage() {
                   key={booking.id}
                   booking={booking}
                   onCancel={handleCancel}
-                  showCancel
+                  showCancel={canCancelBooking(booking)}
                 />
               ))}
             </div>
@@ -99,7 +100,7 @@ export default function MyBookingsPage() {
                   key={booking.id}
                   booking={booking}
                   onCancel={handleCancel}
-                  showCancel
+                  showCancel={canCancelBooking(booking)}
                 />
               ))}
             </div>

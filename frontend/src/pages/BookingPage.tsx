@@ -28,6 +28,7 @@ export default function BookingPage() {
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>(''); // Duration in hours as string
   const [purpose, setPurpose] = useState('');
   const [bookingType, setBookingType] = useState<BookingType>('regular');
 
@@ -45,6 +46,36 @@ export default function BookingPage() {
   };
 
   const duration = calculateDuration();
+
+  // Auto-calculate end time when time slot or start time changes
+  useEffect(() => {
+    if (selectedTimeSlot && startTime) {
+      const slotDuration = parseFloat(selectedTimeSlot);
+      const [hours, minutes] = startTime.split(':').map(Number);
+      const totalMinutes = hours * 60 + minutes + slotDuration * 60;
+      const endHours = Math.floor(totalMinutes / 60) % 24;
+      const endMinutes = totalMinutes % 60;
+      setEndTime(`${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`);
+    }
+  }, [selectedTimeSlot, startTime]);
+
+  // Get available time slots for selected resource
+  const getAvailableTimeSlots = () => {
+    if (!selectedResource) return [];
+
+    // Use resource's configured time slots if available
+    if (selectedResource.availableTimeSlots && selectedResource.availableTimeSlots.length > 0) {
+      return selectedResource.availableTimeSlots;
+    }
+
+    // Default time slots if none configured
+    return [
+      { label: '1 Hour', duration: 1, isDefault: true },
+      { label: '2 Hours', duration: 2, isDefault: false },
+      { label: 'Half Day', duration: 4, isDefault: false },
+      { label: 'Full Day', duration: 8, isDefault: false },
+    ];
+  };
 
   // Get available booking types based on user role
   const getAvailableBookingTypes = () => {
@@ -171,40 +202,63 @@ export default function BookingPage() {
                 </Popover>
               </div>
 
-              {/* Time Range Selection */}
-              <div className="space-y-2">
-                <Label>Select Time Range</Label>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="startTime" className="text-sm text-muted-foreground">Start Time</Label>
-                    <Input
-                      id="startTime"
-                      type="time"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="endTime" className="text-sm text-muted-foreground">End Time</Label>
-                    <Input
-                      id="endTime"
-                      type="time"
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      required
-                    />
-                  </div>
+              {/* Time Slot and Time Selection */}
+              <div className="space-y-4">
+                {/* Time Slot Selection */}
+                <div className="space-y-2">
+                  <Label>Select Time Slot</Label>
+                  <Select
+                    value={selectedTimeSlot}
+                    onValueChange={setSelectedTimeSlot}
+                    disabled={!selectedResource}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose duration..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getAvailableTimeSlots().map((slot) => (
+                        <SelectItem key={slot.duration} value={slot.duration.toString()}>
+                          {slot.label} ({slot.duration}h)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!selectedResource && (
+                    <p className="text-xs text-muted-foreground">
+                      Select a resource first to see available time slots
+                    </p>
+                  )}
                 </div>
-                {duration > 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    Duration: <span className="font-medium text-foreground">{duration} hour{duration !== 1 ? 's' : ''}</span>
-                  </p>
-                )}
-                {duration < 0 && (
-                  <p className="text-sm text-destructive">
-                    End time must be after start time
-                  </p>
+
+                {/* Start Time */}
+                <div className="space-y-2">
+                  <Label htmlFor="startTime">Start Time</Label>
+                  <Input
+                    id="startTime"
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    required
+                    disabled={!selectedTimeSlot}
+                  />
+                  {!selectedTimeSlot && (
+                    <p className="text-xs text-muted-foreground">
+                      Select a time slot first
+                    </p>
+                  )}
+                </div>
+
+                {/* Auto-calculated End Time */}
+                {endTime && (
+                  <div className="space-y-2">
+                    <Label>End Time (Auto-calculated)</Label>
+                    <div className="flex items-center gap-2 p-3 rounded-md bg-muted">
+                      <span className="text-sm font-medium">{endTime}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({duration} hour{duration !== 1 ? 's' : ''})
+                      </span>
+                    </div>
+                  </div>
                 )}
               </div>
 

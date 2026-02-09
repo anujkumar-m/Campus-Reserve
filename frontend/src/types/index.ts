@@ -2,11 +2,13 @@ export type UserRole = 'admin' | 'faculty' | 'student' | 'department' | 'club';
 
 export interface User {
   id: string;
+  _id?: string; // MongoDB ID from backend
   name: string;
   email: string;
   role: UserRole;
   department?: string;
   clubName?: string;
+  isActive?: boolean;
 }
 
 export type ResourceType =
@@ -26,6 +28,12 @@ export type ResourceType =
 
 export type ResourceCategory = 'department' | 'central' | 'movable_asset';
 
+export interface TimeSlot {
+  label: string;
+  duration: number; // in hours
+  isDefault?: boolean;
+}
+
 export interface Resource {
   id: string;
   name: string;
@@ -40,6 +48,7 @@ export interface Resource {
   maxBookingDuration?: number;
   customType?: string; // For when type is 'others'
   image?: string;
+  availableTimeSlots?: TimeSlot[];
 }
 
 export type BookingStatus =

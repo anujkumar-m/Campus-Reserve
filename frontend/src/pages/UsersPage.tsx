@@ -10,12 +10,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Users, GraduationCap, BookOpen, Building2, Sparkles, UserPlus, ShieldOff, ShieldCheck, Trash2 } from 'lucide-react';
+import { Users, GraduationCap, BookOpen, Building2, Sparkles, UserPlus, ShieldOff, ShieldCheck, Trash2, Pencil } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { BlockUserDialog } from '@/components/BlockUserDialog';
 import { DeleteUserDialog } from '@/components/DeleteUserDialog';
 import { toast as sonnerToast } from 'sonner';
+import { DEPARTMENT_LIST } from '@/constants/departments';
+import { EditUserDialog } from '@/components/EditUserDialog';
 
 const roleIcons = {
   admin: Building2,
@@ -46,6 +48,17 @@ export default function UsersPage() {
   const [role, setRole] = useState<string>('student');
   const [department, setDepartment] = useState('');
   const [clubName, setClubName] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [customDepartment, setCustomDepartment] = useState('');
+
+  // Edit user state
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState<string>('student');
+  const [editSelectedDepartment, setEditSelectedDepartment] = useState<string>('');
+  const [editCustomDepartment, setEditCustomDepartment] = useState('');
+  const [editClubName, setEditClubName] = useState('');
 
   // Fetch all users
   const { data: users = [], isLoading } = useQuery({
@@ -87,11 +100,27 @@ export default function UsersPage() {
     },
   });
 
+  // Update user mutation
+  const updateUserMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => userService.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      sonnerToast.success('User updated successfully');
+      setIsEditDialogOpen(false);
+      setEditingUser(null);
+    },
+    onError: (error: any) => {
+      sonnerToast.error(error.response?.data?.message || 'Failed to update user');
+    },
+  });
+
   const resetForm = () => {
     setEmail('');
     setRole('student');
     setDepartment('');
     setClubName('');
+    setSelectedDepartment('');
+    setCustomDepartment('');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -100,9 +129,20 @@ export default function UsersPage() {
     assignRoleMutation.mutate({
       email,
       role,
-      department: ['faculty', 'student', 'department'].includes(role) ? department : undefined,
+      department: ['faculty', 'student', 'department'].includes(role)
+        ? (selectedDepartment === 'other' ? customDepartment : selectedDepartment)
+        : undefined,
       clubName: role === 'club' ? clubName : undefined,
     });
+  };
+
+  const handleEditUser = (user: any) => {
+    setEditingUser(user);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = (data: any) => {
+    updateUserMutation.mutate({ id: editingUser.id, data });
   };
 
   const usersByRole = {
@@ -179,11 +219,33 @@ export default function UsersPage() {
                 {['faculty', 'student', 'department'].includes(role) && (
                   <div className="grid gap-2">
                     <Label htmlFor="department">Department</Label>
+                    <Select
+                      value={selectedDepartment}
+                      onValueChange={setSelectedDepartment}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEPARTMENT_LIST.map((dept) => (
+                          <SelectItem key={dept.code} value={dept.value}>
+                            {dept.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="other">Other (Manual Entry)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {['faculty', 'student', 'department'].includes(role) && selectedDepartment === 'other' && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="customDepartment">Custom Department Name</Label>
                     <Input
-                      id="department"
-                      placeholder="e.g., Computer Science"
-                      value={department}
-                      onChange={(e) => setDepartment(e.target.value)}
+                      id="customDepartment"
+                      placeholder="Enter department name"
+                      value={customDepartment}
+                      onChange={(e) => setCustomDepartment(e.target.value)}
                       required
                     />
                   </div>
@@ -250,11 +312,13 @@ export default function UsersPage() {
               {users.map((user: any) => {
                 const Icon = roleIcons[user.role as keyof typeof roleIcons];
                 const isBlocked = user.isActive === false;
-                const isSelf = user.id === currentUser?.id;
+                // Fix: backend returns _id, not id
+                const isSelf = user._id === currentUser?.id;
+
 
                 return (
                   <div
-                    key={user.id}
+                    key={user._id || user.id}
                     className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
                   >
                     <div className="flex items-center gap-4">
@@ -294,6 +358,14 @@ export default function UsersPage() {
                       {/* Admin Actions */}
                       {!isSelf && (
                         <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditUser(user)}
+                          >
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
                           {isBlocked ? (
                             <Button
                               size="sm"
@@ -344,6 +416,15 @@ export default function UsersPage() {
         open={!!deleteUserData}
         onOpenChange={(open) => !open && setDeleteUserData(null)}
       />
+      {editingUser && (
+        <EditUserDialog
+          user={editingUser}
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          onSave={handleSaveEdit}
+          isLoading={updateUserMutation.isPending}
+        />
+      )}
     </div>
   );
 }

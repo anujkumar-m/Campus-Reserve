@@ -32,6 +32,10 @@ export const authService = {
             console.log('✅ Login response:', response.data);
 
             if (response.data.success) {
+                // Normalize: ensure id field exists (backend returns _id)
+                if (response.data.user._id && !response.data.user.id) {
+                    response.data.user.id = response.data.user._id;
+                }
                 localStorage.setItem('token', response.data.token);
                 localStorage.setItem('user', JSON.stringify(response.data.user));
             }
@@ -65,6 +69,10 @@ export const authService = {
             });
 
             if (response.data.success) {
+                // Normalize: ensure id field exists (backend returns _id)
+                if (response.data.user._id && !response.data.user.id) {
+                    response.data.user.id = response.data.user._id;
+                }
                 localStorage.setItem('token', response.data.token);
                 localStorage.setItem('user', JSON.stringify(response.data.user));
             }
@@ -89,7 +97,12 @@ export const authService = {
     // Get current user
     getCurrentUser: async (): Promise<User> => {
         const response = await api.get('/auth/me');
-        return response.data.data;
+        const user = response.data.data;
+        // Normalize: ensure id field exists (backend returns _id)
+        if (user._id && !user.id) {
+            user.id = user._id;
+        }
+        return user;
     },
 
     // Logout user

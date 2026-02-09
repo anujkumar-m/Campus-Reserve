@@ -6,8 +6,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { BookingStatusBadge } from './BookingStatusBadge';
-import { Calendar, Clock, MapPin, User, Building2 } from 'lucide-react';
+import { Calendar, Clock, MapPin, User, Building2, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
+import { canApproveBooking } from '@/utils/bookingUtils';
 
 interface ApprovalCardProps {
     booking: Booking;
@@ -106,7 +107,12 @@ export const ApprovalCard = ({ booking, onApprove, onReject }: ApprovalCardProps
             </CardContent>
 
             <CardFooter className="flex gap-2">
-                {!isRejecting ? (
+                {!canApproveBooking(booking) ? (
+                    <div className="w-full flex items-center justify-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive">
+                        <AlertTriangle className="h-4 w-4" />
+                        <span className="text-sm font-medium">This booking is in the past and cannot be approved</span>
+                    </div>
+                ) : !isRejecting ? (
                     <>
                         <Button
                             onClick={handleApprove}
